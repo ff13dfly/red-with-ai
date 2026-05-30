@@ -30,7 +30,7 @@ disable-model-invocation: true
    - `git add log/`（**只加 log 目录，不要 add README / 草稿 / 配置等其他改动**）。
    - 若 `git status` 显示 log 无改动，告知「今天 log 没有新内容」并跳过提交与推送。
    - 提交信息用 here-doc，正文 `log: <TODAY> 当日问答记录`，末尾加：
-     `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>`
+     `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>`
 
 4. **推送**
    - `git push`（`origin`/upstream 已设好）。

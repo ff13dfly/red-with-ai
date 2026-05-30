@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Red Tools · AI 内容工具集</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+      background: #0f0f0f;
+      color: #d8d8d8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 48px 40px 32px;
+      border-bottom: 1px solid #1e1e1e;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+    }
+    .site-label {
+      font-size: 11px;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      color: #444;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 28px;
+      font-weight: 700;
+      color: #f0f0f0;
+      line-height: 1.2;
+      margin-bottom: 10px;
+    }
+    h1 span { color: #4a7fff; }
+    .subtitle {
+      font-size: 14px;
+      color: #555;
+      line-height: 1.7;
+      max-width: 520px;
+    }
+
+    /* ── Main ── */
+    main {
+      flex: 1;
+      padding: 36px 40px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+    }
+
+    .section-title {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #3a3a3a;
+      margin-bottom: 20px;
+    }
+
+    /* ── Tool cards ── */
+    #tool-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 16px;
+      margin-bottom: 40px;
+    }
+
+    .tool-card {
+      background: #161616;
+      border: 1px solid #222;
+      border-radius: 10px;
+      padding: 22px 22px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      transition: border-color .15s, transform .15s;
+      text-decoration: none;
+    }
+    .tool-card:hover { border-color: #3a3a3a; transform: translateY(-2px); }
+
+    .card-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .card-name {
+      font-size: 16px;
+      font-weight: 600;
+      color: #e8e8e8;
+    }
+    .ver-badge {
+      font-size: 10px;
+      background: #1a2a4a;
+      color: #6a9fff;
+      border: 1px solid #243560;
+      border-radius: 4px;
+      padding: 2px 7px;
+      flex-shrink: 0;
+      margin-top: 3px;
+      font-family: monospace;
+    }
+
+    .card-desc {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+      flex: 1;
+    }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 4px;
+    }
+    .card-url {
+      font-size: 11px;
+      color: #333;
+      font-family: monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .open-btn {
+      display: inline-block;
+      background: #1a3070;
+      color: #7aafff;
+      border: 1px solid #243a80;
+      border-radius: 5px;
+      padding: 5px 14px;
+      font-size: 12px;
+      font-weight: 600;
+      text-decoration: none;
+      transition: background .12s;
+      flex-shrink: 0;
+    }
+    .open-btn:hover { background: #243a90; }
+
+    /* ── How to run ── */
+    .how-to {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 20px 24px;
+      margin-bottom: 36px;
+    }
+    .how-to h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #aaa;
+      margin-bottom: 12px;
+    }
+    .step {
+      display: flex;
+      gap: 12px;
+      margin-bottom: 8px;
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 20px;
+      height: 20px;
+      border-radius: 50%;
+      background: #222;
+      color: #555;
+      font-size: 11px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 2px;
+    }
+    code {
+      background: #1e1e1e;
+      color: #7aafff;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .note {
+      font-size: 11px;
+      color: #3a3a3a;
+      margin-top: 12px;
+      line-height: 1.6;
+    }
+
+    /* ── Empty / error states ── */
+    #state-loading, #state-error, #state-empty {
+      display: none;
+      padding: 40px 0;
+      text-align: center;
+      color: #333;
+      font-size: 14px;
+      line-height: 2;
+    }
+
+    /* ── Footer ── */
+    footer {
+      border-top: 1px solid #1a1a1a;
+      padding: 20px 40px;
+      max-width: 900px;
+      width: 100%;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .footer-left { font-size: 12px; color: #2e2e2e; }
+    .footer-right { font-size: 12px; color: #2e2e2e; }
+    .footer-right a { color: #3a3a3a; text-decoration: none; }
+    .footer-right a:hover { color: #777; }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="site-label">Red · AI 内容工具集</div>
+  <h1>内容生产<span>工具箱</span></h1>
+  <p class="subtitle">
+    配套「普通人 + AI 从 0 做小红书」系列。<br>
+    工具开源，克隆仓库即可本地使用。
+  </p>
+</header>
+
+<main>
+
+  <div class="how-to">
+    <h2>快速开始</h2>
+    <div class="step">
+      <div class="step-num">1</div>
+      <div><code>git clone</code> 或下载仓库，进入 <code>tools/</code> 目录</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div>运行 <code>bash dev.sh</code>，自动启动本地服务并打开此页</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div>点击下方工具卡片开始使用</div>
+    </div>
+    <p class="note">
+      需要 Python 3（macOS / Linux 通常已内置）。<br>
+      部分工具调用 AI API（Gemini 等），需在工具内配置 API Key，Key 仅存本机。<br>
+      直接双击 HTML 文件打开也可使用，但 AI 生图功能可能因浏览器 CORS 限制失效，建议通过 dev.sh 启动。
+    </p>
+  </div>
+
+  <div class="section-title">工具列表</div>
+
+  <div id="state-loading">加载中...</div>
+
+  <div id="state-error">
+    未检测到工具清单。<br>
+    请先运行 <code>bash dev.sh</code> 启动本地服务，再刷新此页。
+  </div>
+
+  <div id="state-empty">
+    暂无工具（清单为空）。<br>
+    请在 HTML 文件中添加 <code>&lt;!-- @tool ... --&gt;</code> 元数据后重启 dev.sh。
+  </div>
+
+  <div id="tool-grid"></div>
+
+</main>
+
+<footer>
+  <span class="footer-left">Red Tools · 本地工具集</span>
+  <span class="footer-right">
+    开源使用 · 随项目持续更新
+  </span>
+</footer>
+
+<script>
+const grid    = document.getElementById('tool-grid');
+const loading = document.getElementById('state-loading');
+const errBox  = document.getElementById('state-error');
+const empty   = document.getElementById('state-empty');
+
+loading.style.display = 'block';
+
+fetch('tools-manifest.json?' + Date.now())
+  .then(r => {
+    if (!r.ok) throw new Error('not found');
+    return r.json();
+  })
+  .then(data => {
+    loading.style.display = 'none';
+    const tools = data.tools || [];
+
+    if (!tools.length) {
+      empty.style.display = 'block';
+      return;
+    }
+
+    tools.forEach(t => {
+      const card = document.createElement('div');
+      card.className = 'tool-card';
+
+      const name    = t.name        || t.url?.replace('.html','') || '未命名工具';
+      const ver     = t.version     || '—';
+      const desc    = t.description || '暂无描述';
+      const url     = t.url         || '#';
+
+      card.innerHTML = `
+        <div class="card-head">
+          <span class="card-name">${esc(name)}</span>
+          <span class="ver-badge">v${esc(ver)}</span>
+        </div>
+        <div class="card-desc">${esc(desc)}</div>
+        <div class="card-footer">
+          <span class="card-url">${esc(url)}</span>
+          <a class="open-btn" href="${esc(url)}" target="_blank">打开工具 →</a>
+        </div>
+      `;
+      grid.appendChild(card);
+    });
+  })
+  .catch(() => {
+    loading.style.display = 'none';
+    errBox.style.display  = 'block';
+  });
+
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+</script>
+</body>
+</html>

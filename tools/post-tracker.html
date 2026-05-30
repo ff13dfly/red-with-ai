@@ -1,0 +1,947 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <!-- @tool
+  name: post-tracker
+  version: 1.0
+  description: 小红书笔记数据录入与分析，IndexedDB 本地存储，支持按内容线/指标多维对比
+  -->
+  <title>笔记数据追踪 v1.0</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, "PingFang SC", "Noto Sans SC", sans-serif;
+      background: #0f0f0f;
+      color: #d8d8d8;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header / Nav ── */
+    #app-header {
+      background: #161616;
+      border-bottom: 1px solid #222;
+      padding: 0 32px;
+      display: flex;
+      align-items: center;
+      gap: 32px;
+      height: 52px;
+      flex-shrink: 0;
+    }
+    .brand { font-size: 14px; font-weight: 700; color: #e0e0e0; white-space: nowrap; }
+    .brand span { color: #4a7fff; }
+
+    .tab-nav { display: flex; gap: 2px; }
+    .tab-btn {
+      background: none; border: none;
+      padding: 6px 16px; border-radius: 5px;
+      font-size: 13px; color: #555; cursor: pointer;
+      transition: background .1s, color .1s;
+      font-family: inherit;
+    }
+    .tab-btn:hover { background: #222; color: #aaa; }
+    .tab-btn.active { background: #1e2840; color: #6a9fff; font-weight: 600; }
+
+    .header-right { margin-left: auto; display: flex; gap: 8px; }
+
+    /* ── Main ── */
+    #app-main { flex: 1; overflow-y: auto; }
+
+    .tab-section { display: none; }
+    .tab-section.active { display: block; }
+
+    /* ── Form (录入 tab) ── */
+    .form-wrap {
+      max-width: 780px;
+      margin: 32px auto;
+      padding: 0 24px;
+    }
+    .form-title {
+      font-size: 16px; font-weight: 600; color: #e0e0e0;
+      margin-bottom: 24px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px 24px;
+    }
+    .form-grid .span2 { grid-column: span 2; }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label {
+      font-size: 11px; color: #555;
+      text-transform: uppercase; letter-spacing: .8px;
+    }
+    .field input, .field select, .field textarea {
+      background: #181818;
+      border: 1px solid #2a2a2a;
+      color: #ddd;
+      padding: 9px 11px;
+      border-radius: 6px;
+      font-size: 13px;
+      font-family: inherit;
+      transition: border-color .1s;
+    }
+    .field input:focus, .field select:focus, .field textarea:focus {
+      outline: none; border-color: #4a7fff;
+    }
+    .field textarea { resize: vertical; min-height: 80px; line-height: 1.6; }
+    .field input[type=number] { -moz-appearance: textfield; }
+    .field input[type=number]::-webkit-inner-spin-button { -webkit-appearance: none; }
+
+    .metrics-group {
+      background: #141414;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .metrics-group-title {
+      font-size: 11px; color: #444;
+      text-transform: uppercase; letter-spacing: .8px;
+      margin-bottom: 12px;
+    }
+    .metrics-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+    .metric-input { display: flex; flex-direction: column; gap: 5px; }
+    .metric-input label { font-size: 11px; color: #555; }
+    .metric-input input {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      color: #ddd; padding: 8px 10px;
+      border-radius: 5px; font-size: 14px;
+      font-family: inherit; text-align: center;
+      font-weight: 600;
+    }
+    .metric-input input:focus { outline: none; border-color: #4a7fff; }
+
+    .form-actions { margin-top: 20px; display: flex; gap: 10px; }
+
+    /* ── Records tab ── */
+    .records-wrap { padding: 24px 32px; }
+    .records-head {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 16px; flex-wrap: wrap;
+    }
+    .records-head h2 { font-size: 14px; font-weight: 600; color: #e0e0e0; }
+    .count-badge {
+      background: #1e2840; color: #6a9fff;
+      font-size: 11px; padding: 2px 8px;
+      border-radius: 10px; font-weight: 600;
+    }
+
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px;
+    }
+    th {
+      text-align: left; padding: 10px 12px;
+      background: #141414;
+      border-bottom: 1px solid #222;
+      color: #555; font-size: 11px;
+      text-transform: uppercase; letter-spacing: .6px;
+      cursor: pointer; white-space: nowrap;
+      user-select: none;
+    }
+    th:hover { color: #aaa; }
+    th.sort-asc::after  { content: ' ↑'; color: #4a7fff; }
+    th.sort-desc::after { content: ' ↓'; color: #4a7fff; }
+    td {
+      padding: 10px 12px;
+      border-bottom: 1px solid #191919;
+      vertical-align: middle;
+    }
+    tr:hover td { background: #151515; }
+
+    .line-badge {
+      display: inline-block;
+      font-size: 11px; font-weight: 700;
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .line-元 { background: #1a2840; color: #6a9fff; }
+    .line-A  { background: #2a1a40; color: #c084fc; }
+    .line-B  { background: #1a3020; color: #4ade80; }
+    .line-C  { background: #3a2510; color: #fb923c; }
+    .line-D  { background: #3a1515; color: #f87171; }
+
+    .post-title-cell {
+      max-width: 220px; overflow: hidden;
+      text-overflow: ellipsis; white-space: nowrap;
+      color: #ccc;
+    }
+    .metric-cell { text-align: right; font-variant-numeric: tabular-nums; }
+    .metric-cell.highlight { color: #4a7fff; font-weight: 600; }
+
+    .action-btns { display: flex; gap: 6px; }
+
+    /* ── Analysis tab ── */
+    .analysis-wrap { padding: 24px 32px; max-width: 1000px; }
+
+    .summary-cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px; margin-bottom: 28px;
+    }
+    .stat-card {
+      background: #141414; border: 1px solid #1e1e1e;
+      border-radius: 8px; padding: 16px;
+    }
+    .stat-label { font-size: 11px; color: #444; margin-bottom: 6px; }
+    .stat-value { font-size: 22px; font-weight: 700; color: #e0e0e0; }
+    .stat-sub   { font-size: 11px; color: #3a3a3a; margin-top: 4px; }
+
+    .section-head {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 16px;
+    }
+    .section-head h3 { font-size: 13px; font-weight: 600; color: #888; }
+
+    .metric-toggle { display: flex; gap: 4px; }
+    .metric-btn {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      color: #555; padding: 4px 12px;
+      border-radius: 4px; font-size: 12px;
+      cursor: pointer; transition: all .1s;
+      font-family: inherit;
+    }
+    .metric-btn:hover { border-color: #444; color: #aaa; }
+    .metric-btn.active { background: #1a2840; border-color: #4a7fff; color: #6a9fff; }
+
+    #chart-canvas {
+      display: block;
+      background: #111;
+      border: 1px solid #1e1e1e;
+      border-radius: 8px;
+      width: 100%;
+      margin-bottom: 28px;
+    }
+
+    .breakdown-table {
+      width: 100%; border-collapse: collapse;
+      font-size: 13px; margin-bottom: 28px;
+    }
+    .breakdown-table th {
+      background: #141414; text-align: right;
+      padding: 8px 14px; font-size: 11px;
+      color: #444; border-bottom: 1px solid #1e1e1e;
+    }
+    .breakdown-table th:first-child { text-align: left; }
+    .breakdown-table td {
+      padding: 9px 14px; border-bottom: 1px solid #191919;
+      text-align: right;
+    }
+    .breakdown-table td:first-child { text-align: left; }
+    .breakdown-table tr:hover td { background: #141414; }
+
+    /* ── Buttons ── */
+    button {
+      border: none; border-radius: 5px;
+      font-size: 13px; cursor: pointer;
+      transition: opacity .1s; padding: 8px 16px;
+      font-family: inherit;
+    }
+    button:hover:not(:disabled) { opacity: .82; }
+    button:disabled { opacity: .35; cursor: not-allowed; }
+
+    .btn-primary { background: #2a55cc; color: #fff; font-weight: 600; }
+    .btn-ghost   { background: #1e1e1e; color: #888; border: 1px solid #2a2a2a; }
+    .btn-danger  { background: #3a1515; color: #f87171; border: 1px solid #5a2020; }
+    .btn-sm      { padding: 5px 10px; font-size: 12px; }
+    .btn-export  { background: #1a2a20; color: #4ade80; border: 1px solid #2a4a30; }
+
+    /* ── Modal ── */
+    .modal-bg {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,.7); z-index: 200;
+      align-items: center; justify-content: center;
+    }
+    .modal-bg.on { display: flex; }
+    .modal {
+      background: #1a1a1a; border: 1px solid #2a2a2a;
+      border-radius: 10px; padding: 24px;
+      width: 680px; max-width: calc(100vw - 32px);
+      max-height: 90vh; overflow-y: auto;
+    }
+    .modal-hd {
+      display: flex; align-items: center;
+      justify-content: space-between; margin-bottom: 20px;
+    }
+    .modal-title { font-size: 15px; font-weight: 600; color: #e0e0e0; }
+    .modal-x { font-size: 22px; color: #444; cursor: pointer; line-height: 1; transition: color .1s; }
+    .modal-x:hover { color: #ccc; }
+
+    /* ── Empty state ── */
+    .empty-state {
+      text-align: center; padding: 60px 20px;
+      color: #333; font-size: 14px; line-height: 2;
+    }
+    .empty-state strong { color: #444; }
+
+    /* ── Misc ── */
+    .notes-row { display: none; }
+    .notes-row.open { display: table-row; }
+    .notes-content {
+      padding: 10px 14px; background: #111;
+      color: #666; font-size: 12px; line-height: 1.7;
+      white-space: pre-wrap;
+    }
+
+    .ver-note { font-size: 11px; color: #2e2e2e; margin-left: auto; }
+  </style>
+</head>
+<body>
+
+<!-- ── Edit Modal ──────────────────────────── -->
+<div class="modal-bg" id="editModal">
+  <div class="modal">
+    <div class="modal-hd">
+      <span class="modal-title" id="modalTitle">编辑笔记</span>
+      <span class="modal-x" id="modalClose">×</span>
+    </div>
+    <div id="modalFormWrap"><!-- same form rendered here --></div>
+  </div>
+</div>
+
+<!-- ── App ────────────────────────────────── -->
+<div id="app-header">
+  <span class="brand">Red · <span>笔记追踪</span></span>
+  <nav class="tab-nav">
+    <button class="tab-btn active" data-tab="input">录入</button>
+    <button class="tab-btn" data-tab="records">记录</button>
+    <button class="tab-btn" data-tab="analysis">分析</button>
+  </nav>
+  <div class="header-right">
+    <span class="ver-note">post-tracker v1.0</span>
+  </div>
+</div>
+
+<div id="app-main">
+
+  <!-- ── 录入 ── -->
+  <section id="tab-input" class="tab-section active">
+    <div class="form-wrap">
+      <div class="form-title">新增笔记记录</div>
+      <form id="addForm">
+        <div class="form-grid">
+
+          <div class="field span2">
+            <label>标题 *</label>
+            <input type="text" name="title" placeholder="笔记标题" required>
+          </div>
+
+          <div class="field">
+            <label>发布日期 *</label>
+            <input type="date" name="date" required>
+          </div>
+
+          <div class="field">
+            <label>内容线</label>
+            <select name="line">
+              <option value="元">元主线</option>
+              <option value="A">A · AI 小说</option>
+              <option value="B">B · SPP</option>
+              <option value="C">C · 共创</option>
+              <option value="D">D · 开发</option>
+            </select>
+          </div>
+
+          <div class="field span2">
+            <label>链接（选填）</label>
+            <input type="text" name="url" placeholder="https://www.xiaohongshu.com/...">
+          </div>
+
+          <!-- Metrics -->
+          <div class="field span2">
+            <div class="metrics-group">
+              <div class="metrics-group-title">数据指标</div>
+              <div class="metrics-row">
+                <div class="metric-input">
+                  <label>赞</label>
+                  <input type="number" name="likes" min="0" value="0">
+                </div>
+                <div class="metric-input">
+                  <label>收藏</label>
+                  <input type="number" name="saves" min="0" value="0">
+                </div>
+                <div class="metric-input">
+                  <label>评论</label>
+                  <input type="number" name="comments" min="0" value="0">
+                </div>
+                <div class="metric-input">
+                  <label>涨粉</label>
+                  <input type="number" name="followers" min="0" value="0">
+                </div>
+              </div>
+              <div style="margin-top:12px">
+                <div class="metric-input" style="flex-direction:row;align-items:center;gap:10px">
+                  <label style="white-space:nowrap;color:#444">数据时间点</label>
+                  <select name="dataAt" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit">
+                    <option value="24h">发布后 24h</option>
+                    <option value="7d">发布后 7 天</option>
+                    <option value="30d">发布后 30 天</option>
+                    <option value="now">当前实时</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="field span2">
+            <label>复盘笔记（选填）</label>
+            <textarea name="notes" placeholder="什么有效 / 什么无效 / 下次改什么…"></textarea>
+          </div>
+
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn-primary">保存记录</button>
+          <button type="reset"  class="btn-ghost">清空</button>
+        </div>
+      </form>
+    </div>
+  </section>
+
+  <!-- ── 记录 ── -->
+  <section id="tab-records" class="tab-section">
+    <div class="records-wrap">
+      <div class="records-head">
+        <h2>全部记录</h2>
+        <span class="count-badge" id="countBadge">0</span>
+        <div style="margin-left:auto;display:flex;gap:8px">
+          <button class="btn-export btn-sm" id="exportCsvBtn">导出 CSV</button>
+        </div>
+      </div>
+
+      <div id="emptyRecords" class="empty-state" style="display:none">
+        <strong>还没有记录</strong><br>
+        去「录入」tab 添加第一篇笔记数据吧
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table id="recordsTable">
+          <thead>
+            <tr>
+              <th data-col="date">发布日期</th>
+              <th data-col="line">线</th>
+              <th data-col="title">标题</th>
+              <th data-col="likes"   class="metric-cell">赞</th>
+              <th data-col="saves"   class="metric-cell">收藏</th>
+              <th data-col="comments"class="metric-cell">评论</th>
+              <th data-col="followers"class="metric-cell">涨粉</th>
+              <th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 分析 ── -->
+  <section id="tab-analysis" class="tab-section">
+    <div class="analysis-wrap">
+
+      <div class="summary-cards" id="summaryCards">
+        <!-- rendered by JS -->
+      </div>
+
+      <div class="section-head">
+        <h3>各篇表现</h3>
+        <div class="metric-toggle" id="metricToggle">
+          <button class="metric-btn active" data-metric="saves">收藏</button>
+          <button class="metric-btn" data-metric="likes">赞</button>
+          <button class="metric-btn" data-metric="comments">评论</button>
+          <button class="metric-btn" data-metric="followers">涨粉</button>
+        </div>
+      </div>
+
+      <canvas id="chart-canvas" height="320"></canvas>
+
+      <div class="section-head" style="margin-top:8px">
+        <h3>内容线对比</h3>
+      </div>
+      <table class="breakdown-table" id="breakdownTable">
+        <thead>
+          <tr>
+            <th>内容线</th>
+            <th>篇数</th>
+            <th>均收藏</th>
+            <th>均赞</th>
+            <th>均评论</th>
+            <th>总涨粉</th>
+          </tr>
+        </thead>
+        <tbody id="breakdownTbody"></tbody>
+      </table>
+
+    </div>
+  </section>
+
+</div><!-- /app-main -->
+
+<script>
+// ── IndexedDB ──────────────────────────────────────────────────────
+const DB_NAME    = 'red-post-tracker';
+const DB_VERSION = 1;
+const STORE      = 'posts';
+
+let db = null;
+
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open(DB_NAME, DB_VERSION);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains(STORE)) {
+        const s = d.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
+        s.createIndex('date', 'date');
+        s.createIndex('line', 'line');
+      }
+    };
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function idb(req) {
+  return new Promise((res, rej) => {
+    req.onsuccess = e => res(e.target.result);
+    req.onerror   = e => rej(e.target.error);
+  });
+}
+
+function tx(mode = 'readonly') {
+  return db.transaction(STORE, mode).objectStore(STORE);
+}
+
+const dbGetAll    = ()        => idb(tx().getAll());
+const dbAdd       = post      => { post.createdAt = post.updatedAt = Date.now(); return idb(tx('readwrite').add(post)); };
+const dbPut       = post      => { post.updatedAt = Date.now(); return idb(tx('readwrite').put(post)); };
+const dbDelete    = id        => idb(tx('readwrite').delete(id));
+
+// ── State ──────────────────────────────────────────────────────────
+let posts      = [];
+let sortCol    = 'date';
+let sortDir    = 'desc';
+let chartMetric = 'saves';
+let editingId  = null;
+
+// ── Helpers ────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+const avg = (arr, k) => arr.length ? Math.round(arr.reduce((s, p) => s + (p[k] || 0), 0) / arr.length) : 0;
+const sum = (arr, k) => arr.reduce((s, p) => s + (p[k] || 0), 0);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+const LINE_COLORS = { 元:'#4a7fff', A:'#c084fc', B:'#4ade80', C:'#fb923c', D:'#f87171' };
+const METRIC_LABEL = { saves:'收藏', likes:'赞', comments:'评论', followers:'涨粉' };
+
+function formData(form) {
+  const fd = new FormData(form);
+  const post = {};
+  fd.forEach((v, k) => { post[k] = v; });
+  ['likes','saves','comments','followers'].forEach(k => { post[k] = parseInt(post[k]) || 0; });
+  return post;
+}
+
+// ── Tab switching ─────────────────────────────────────────────────
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-section').forEach(s => s.classList.remove('active'));
+    btn.classList.add('active');
+    $('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'analysis') renderAnalysis();
+  });
+});
+
+// ── Add form ───────────────────────────────────────────────────────
+// Default date to today
+$('addForm').querySelector('[name=date]').value = new Date().toISOString().slice(0, 10);
+
+$('addForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const post = formData(e.target);
+  await dbAdd(post);
+  posts = await dbGetAll();
+  renderRecords();
+  e.target.reset();
+  e.target.querySelector('[name=date]').value = new Date().toISOString().slice(0, 10);
+  // Brief visual feedback
+  const btn = e.target.querySelector('[type=submit]');
+  const orig = btn.textContent;
+  btn.textContent = '已保存 ✓'; btn.disabled = true;
+  setTimeout(() => { btn.textContent = orig; btn.disabled = false; }, 1200);
+});
+
+// ── Records ───────────────────────────────────────────────────────
+function renderRecords() {
+  const tbody = $('recordsTbody');
+  $('countBadge').textContent = posts.length;
+
+  if (!posts.length) {
+    $('emptyRecords').style.display = 'block';
+    $('tableWrap').style.display    = 'none';
+    return;
+  }
+  $('emptyRecords').style.display = 'none';
+  $('tableWrap').style.display    = '';
+
+  // Sort
+  const sorted = [...posts].sort((a, b) => {
+    let av = a[sortCol] ?? '', bv = b[sortCol] ?? '';
+    if (typeof av === 'number') return sortDir === 'asc' ? av - bv : bv - av;
+    return sortDir === 'asc' ? String(av).localeCompare(String(bv)) : String(bv).localeCompare(String(av));
+  });
+
+  // Highlight max saves
+  const maxSaves = Math.max(...posts.map(p => p.saves || 0));
+
+  tbody.innerHTML = sorted.map(p => `
+    <tr class="data-row" data-id="${p.id}">
+      <td>${p.date || '—'}</td>
+      <td><span class="line-badge line-${esc(p.line)}">${esc(p.line)}</span></td>
+      <td class="post-title-cell" title="${esc(p.title)}">${esc(p.title)}</td>
+      <td class="metric-cell">${p.likes   || 0}</td>
+      <td class="metric-cell${p.saves === maxSaves && maxSaves > 0 ? ' highlight' : ''}">${p.saves    || 0}</td>
+      <td class="metric-cell">${p.comments|| 0}</td>
+      <td class="metric-cell">${p.followers|| 0}</td>
+      <td>
+        <div class="action-btns">
+          <button class="btn-ghost btn-sm" onclick="openEdit(${p.id})">编辑</button>
+          <button class="btn-danger btn-sm" onclick="deleteRecord(${p.id})">删除</button>
+        </div>
+      </td>
+    </tr>
+    ${p.notes ? `
+    <tr class="notes-row" id="notes-${p.id}">
+      <td colspan="8" class="notes-content">${esc(p.notes)}</td>
+    </tr>` : ''}
+  `).join('');
+
+  // Click title to toggle notes
+  tbody.querySelectorAll('.data-row').forEach(row => {
+    row.querySelector('.post-title-cell')?.addEventListener('click', () => {
+      const nr = $('notes-' + row.dataset.id);
+      if (nr) nr.classList.toggle('open');
+    });
+  });
+
+  // Sort header styling
+  document.querySelectorAll('#recordsTable th[data-col]').forEach(th => {
+    th.classList.remove('sort-asc', 'sort-desc');
+    if (th.dataset.col === sortCol) th.classList.add(sortDir === 'asc' ? 'sort-asc' : 'sort-desc');
+  });
+}
+
+// Sort headers
+document.querySelectorAll('#recordsTable th[data-col]').forEach(th => {
+  th.addEventListener('click', () => {
+    if (sortCol === th.dataset.col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
+    else { sortCol = th.dataset.col; sortDir = 'desc'; }
+    renderRecords();
+  });
+});
+
+// ── Delete ────────────────────────────────────────────────────────
+async function deleteRecord(id) {
+  if (!confirm('确认删除这条记录？')) return;
+  await dbDelete(id);
+  posts = await dbGetAll();
+  renderRecords();
+  renderAnalysis();
+}
+window.deleteRecord = deleteRecord;
+
+// ── Edit modal ────────────────────────────────────────────────────
+function openEdit(id) {
+  const post = posts.find(p => p.id === id);
+  if (!post) return;
+  editingId = id;
+
+  const lines = ['元','A','B','C','D'];
+  const dataAts = ['24h','7d','30d','now'];
+  const daLabels = { '24h':'发布后 24h','7d':'发布后 7 天','30d':'发布后 30 天','now':'当前实时' };
+
+  $('modalFormWrap').innerHTML = `
+    <div class="form-grid">
+      <div class="field span2">
+        <label>标题 *</label>
+        <input type="text" id="m_title" value="${esc(post.title)}" required>
+      </div>
+      <div class="field">
+        <label>发布日期 *</label>
+        <input type="date" id="m_date" value="${esc(post.date)}">
+      </div>
+      <div class="field">
+        <label>内容线</label>
+        <select id="m_line">
+          ${lines.map(l => `<option value="${l}"${post.line===l?' selected':''}>${l==='元'?'元主线':l}</option>`).join('')}
+        </select>
+      </div>
+      <div class="field span2">
+        <label>链接（选填）</label>
+        <input type="text" id="m_url" value="${esc(post.url||'')}">
+      </div>
+      <div class="field span2">
+        <div class="metrics-group">
+          <div class="metrics-group-title">数据指标</div>
+          <div class="metrics-row">
+            ${['likes','saves','comments','followers'].map(k => `
+            <div class="metric-input">
+              <label>${{likes:'赞',saves:'收藏',comments:'评论',followers:'涨粉'}[k]}</label>
+              <input type="number" id="m_${k}" min="0" value="${post[k]||0}">
+            </div>`).join('')}
+          </div>
+          <div style="margin-top:12px">
+            <div class="metric-input" style="flex-direction:row;align-items:center;gap:10px">
+              <label style="white-space:nowrap;color:#444">数据时间点</label>
+              <select id="m_dataAt" style="background:#1a1a1a;border:1px solid #2a2a2a;color:#888;padding:6px 10px;border-radius:5px;font-size:12px;font-family:inherit">
+                ${dataAts.map(v => `<option value="${v}"${post.dataAt===v?' selected':''}>${daLabels[v]}</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field span2">
+        <label>复盘笔记</label>
+        <textarea id="m_notes">${esc(post.notes||'')}</textarea>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button class="btn-primary" id="modalSaveBtn">保存修改</button>
+      <button class="btn-ghost"   id="modalCancelBtn">取消</button>
+    </div>
+  `;
+
+  $('modalSaveBtn').onclick   = saveEdit;
+  $('modalCancelBtn').onclick = closeModal;
+  $('editModal').classList.add('on');
+}
+window.openEdit = openEdit;
+
+function closeModal() {
+  $('editModal').classList.remove('on');
+  editingId = null;
+}
+$('modalClose').onclick = closeModal;
+
+async function saveEdit() {
+  const post = posts.find(p => p.id === editingId);
+  if (!post) return;
+  post.title     = $('m_title').value.trim();
+  post.date      = $('m_date').value;
+  post.line      = $('m_line').value;
+  post.url       = $('m_url').value.trim();
+  post.likes     = parseInt($('m_likes')?.value)    || parseInt($('m_likes')?.value)    || 0;
+  post.saves     = parseInt($('m_saves')?.value)    || 0;
+  post.comments  = parseInt($('m_comments')?.value) || 0;
+  post.followers = parseInt($('m_followers')?.value)|| 0;
+  post.dataAt    = $('m_dataAt').value;
+  post.notes     = $('m_notes').value;
+  // fix the m_ fields
+  ['likes','saves','comments','followers'].forEach(k => {
+    post[k] = parseInt(document.getElementById('m_' + k)?.value) || 0;
+  });
+  await dbPut(post);
+  posts = await dbGetAll();
+  closeModal();
+  renderRecords();
+  renderAnalysis();
+}
+
+// ── Export CSV ────────────────────────────────────────────────────
+$('exportCsvBtn').addEventListener('click', () => {
+  if (!posts.length) return;
+  const cols = ['id','title','date','line','url','likes','saves','comments','followers','dataAt','notes'];
+  const header = ['ID','标题','日期','线','链接','赞','收藏','评论','涨粉','数据时间','复盘'].join(',');
+  const rows = posts.map(p =>
+    cols.map(k => JSON.stringify(p[k] ?? '')).join(',')
+  );
+  const csv = '﻿' + [header, ...rows].join('\n'); // BOM for Excel
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8' });
+  const url  = URL.createObjectURL(blob);
+  Object.assign(document.createElement('a'), { href: url, download: 'posts-export.csv' }).click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+});
+
+// ── Analysis ──────────────────────────────────────────────────────
+function renderAnalysis() {
+  if (!posts.length) {
+    $('summaryCards').innerHTML = '<div class="empty-state">还没有数据，先去录入笔记吧</div>';
+    $('breakdownTbody').innerHTML = '';
+    drawChart([], chartMetric);
+    return;
+  }
+
+  // Summary cards
+  const totalFollowers = sum(posts, 'followers');
+  const avgSaves    = avg(posts, 'saves');
+  const avgLikes    = avg(posts, 'likes');
+  const bestSave    = [...posts].sort((a,b) => (b.saves||0) - (a.saves||0))[0];
+  const saveRate    = posts.length
+    ? Math.round(sum(posts,'saves') / (sum(posts,'saves') + sum(posts,'likes') + sum(posts,'comments') || 1) * 100)
+    : 0;
+
+  $('summaryCards').innerHTML = `
+    <div class="stat-card">
+      <div class="stat-label">共发布</div>
+      <div class="stat-value">${posts.length}</div>
+      <div class="stat-sub">篇笔记</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">平均收藏</div>
+      <div class="stat-value">${avgSaves}</div>
+      <div class="stat-sub">收藏率 ${saveRate}%</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">平均赞</div>
+      <div class="stat-value">${avgLikes}</div>
+      <div class="stat-sub">赞 / 篇</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">总涨粉</div>
+      <div class="stat-value">${totalFollowers}</div>
+      <div class="stat-sub">均 ${posts.length ? Math.round(totalFollowers/posts.length) : 0} / 篇</div>
+    </div>
+  `;
+
+  // Chart
+  drawChart(posts, chartMetric);
+
+  // Breakdown by line
+  const lineOrder = ['元','A','B','C','D'];
+  const byLine = {};
+  posts.forEach(p => {
+    if (!byLine[p.line]) byLine[p.line] = [];
+    byLine[p.line].push(p);
+  });
+
+  $('breakdownTbody').innerHTML = lineOrder
+    .filter(l => byLine[l])
+    .map(l => {
+      const ps = byLine[l];
+      return `<tr>
+        <td><span class="line-badge line-${l}">${l}</span></td>
+        <td>${ps.length}</td>
+        <td>${avg(ps,'saves')}</td>
+        <td>${avg(ps,'likes')}</td>
+        <td>${avg(ps,'comments')}</td>
+        <td>${sum(ps,'followers')}</td>
+      </tr>`;
+    }).join('');
+}
+
+// ── Metric toggle ─────────────────────────────────────────────────
+document.querySelectorAll('.metric-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.metric-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    chartMetric = btn.dataset.metric;
+    drawChart(posts, chartMetric);
+  });
+});
+
+// ── Chart ─────────────────────────────────────────────────────────
+function drawChart(data, metric) {
+  const canvas = $('chart-canvas');
+  const dpr    = window.devicePixelRatio || 1;
+  const W      = canvas.offsetWidth || 700;
+  const H      = 320;
+  canvas.width  = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width  = W + 'px';
+  canvas.style.height = H + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, W, H);
+
+  if (!data.length) {
+    ctx.fillStyle = '#2a2a2a';
+    ctx.font = '13px -apple-system, PingFang SC, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('暂无数据', W / 2, H / 2);
+    return;
+  }
+
+  const sorted = [...data].sort((a,b) => (b[metric]||0) - (a[metric]||0)).slice(0, 15);
+  const maxVal = Math.max(...sorted.map(p => p[metric] || 0), 1);
+
+  const PAD_L  = 130;
+  const PAD_R  = 60;
+  const PAD_T  = 20;
+  const PAD_B  = 24;
+  const barH   = Math.min(28, Math.floor((H - PAD_T - PAD_B) / sorted.length) - 6);
+  const gap    = Math.floor((H - PAD_T - PAD_B - barH * sorted.length) / (sorted.length + 1));
+  const chartW = W - PAD_L - PAD_R;
+
+  // Y axis line
+  ctx.strokeStyle = '#222';
+  ctx.lineWidth   = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD_L, PAD_T);
+  ctx.lineTo(PAD_L, H - PAD_B);
+  ctx.stroke();
+
+  // Metric label
+  ctx.fillStyle = '#555';
+  ctx.font = '11px -apple-system, PingFang SC, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'bottom';
+  ctx.fillText(METRIC_LABEL[metric], PAD_L + 4, H - PAD_B + 18);
+
+  sorted.forEach((post, i) => {
+    const y   = PAD_T + gap + i * (barH + gap);
+    const val = post[metric] || 0;
+    const bw  = Math.round(val / maxVal * chartW);
+    const col = LINE_COLORS[post.line] || '#4a7fff';
+
+    // Bar background
+    ctx.fillStyle = '#1a1a1a';
+    ctx.fillRect(PAD_L, y, chartW, barH);
+
+    // Bar fill
+    if (bw > 0) {
+      ctx.fillStyle = col + '80'; // semi-transparent
+      ctx.fillRect(PAD_L, y, bw, barH);
+      // bright left edge
+      ctx.fillStyle = col;
+      ctx.fillRect(PAD_L, y, 3, barH);
+    }
+
+    // Label (left)
+    const label = post.title.length > 14 ? post.title.slice(0, 13) + '…' : post.title;
+    ctx.fillStyle = '#666';
+    ctx.font = '12px -apple-system, PingFang SC, sans-serif';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(label, PAD_L - 8, y + barH / 2);
+
+    // Value (right of bar)
+    ctx.fillStyle = col;
+    ctx.font = 'bold 12px -apple-system, PingFang SC, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(val, PAD_L + bw + 6, y + barH / 2);
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────
+(async () => {
+  db    = await openDB();
+  posts = await dbGetAll();
+  renderRecords();
+  if ($('tab-analysis').classList.contains('active')) renderAnalysis();
+})();
+
+// Re-draw chart on resize
+window.addEventListener('resize', () => {
+  if ($('tab-analysis').classList.contains('active')) drawChart(posts, chartMetric);
+});
+</script>
+</body>
+</html>
