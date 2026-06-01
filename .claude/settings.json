@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo \"【red 项目提醒】实时维护今日问答 log：先确认 log/$(date +%Y-%m-%d).md 是否存在，没有就按既有格式新建；本次对话每轮问答都追加进去（写入不提交，留到 /收工 再统一 commit）。\"",
+            "statusMessage": "提醒维护今日 log"
+          }
+        ]
+      }
+    ]
+  }
+}
